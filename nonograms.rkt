@@ -1,7 +1,12 @@
 #lang racket
 
-(define (make-board width height)
-  (make-vector width (make-vector height 'empty)))
+(define (make-board spec)
+  (define height (spec-height spec))
+  (define width (spec-width spec))
+  (list->vector (map (lambda (x) (make-vector height -1)) (range width))))
+
+(define (board-copy board)
+  (vector-map vector-copy board))
 
 (define (board-width board)
   (vector-length board))
@@ -12,10 +17,35 @@
 (define (board-get board x y)
   (vector-ref (vector-ref board x) y))
 
+(define (board-set! board x y v)
+  (vector-set! (vector-ref board x) y v))
+
+(define (board-get-col board x)
+  (define height (board-height board))
+
+  (map (lambda (y) (board-get board x y))
+       (range height)))
+
+(define (board-get-row board y)
+  (define width (board-width board))
+
+  (map (lambda (x) (board-get board x y))
+       (range width)))
+
+(define (board-apply-col board x col)
+  (for-each
+   (lambda (y) (board-set! board x y (list-ref col y)))
+   (range (board-height board))))
+
+(define (board-apply-row board y row)
+  (for-each
+   (lambda (x) (board-set! board x y (list-ref row x)))
+   (range (board-width board))))
+
 (define (print-board board)
   (define (board-location->string content)
-    (cond ((= content 1) "1")
-          ((= content 0) "0")
+    (cond ((= content 1) "#")
+          ((= content 0) " ")
           ((= content -1) "?")))
   (for-each
    (lambda (y)
@@ -35,8 +65,8 @@
      (regexp-match* #px"\"([0-9]+,)*[0-9]+\"" spec-string)))
   
   (define lines (file->lines path))
-  (define width (car lines))
-  (define height (cadr lines))
+  (define width (string->number (car lines)))
+  (define height (string->number (cadr lines)))
   (define cols-spec-string (caddr lines))
   (define rows-spec-string (cadddr lines))
 
@@ -46,7 +76,7 @@
         (spec-string->spec rows-spec-string)))
 
 (define spec-width car)
-(define spec-heigh cadr)
+(define spec-height cadr)
 (define spec-cols caddr)
 (define spec-rows cadddr)
 
@@ -127,12 +157,41 @@
        (compare-firsts (map car lines))
        (line-intersections (map cdr lines)))))
 
-#|
-Todo:
-Based on a spec, generate an empty board and maintain a priority list containing
-all rows and columns, initially ordered from line with fullest spec (including 
-breaks).
-The algorithm takes the first item from the priority list, and tries to get new info using line-intersections and all-lines on the current state of that column or row. If there's new info (new 0 or 1) all columns (if we were looking at a row) or all rows (if we were looking at a column) with new info get pushed to the front of the queue, whether they were in the queue or not.
+(define (apply-constraints board spec)
+  (print-board board)
+  (newline)
+  (define old (board-copy board))
+  (for-each
+   (lambda (x)
+     (board-apply-col board
+                      x
+                      (line-intersections
+                       (all-lines
+                        (board-get-col board x)
+                        (list-ref (spec-cols spec) x)))))
+   (range (board-width board)))
+  (for-each
+   (lambda (y)
+     (board-apply-row board
+                      y
+                      (line-intersections
+                       (all-lines
+                        (board-get-row board y)
+                        (list-ref (spec-rows spec) y)))))
+   (range (board-height board)))
+  (unless (equal? board old)
+    (apply-constraints board spec)))
 
-If this does not solve the problem, there are two options left: Either look at all possible solutions at the problem level rather than row-by-row or column-by-column, or just enter a random value somewhere and look at the implications, and if not try something else (integrating a search algorithm in the tree where parents have children consisting of everything you can get by entering a random value and repeating the line-intersections+all-lines method.
+(define (run path)
+  (define spec (file->spec path))
+  (define board (make-board spec))
+  (apply-constraints board spec))
+
+(run (vector-ref (current-command-line-arguments) 0))
+
+#|
+Optimizations:
+ - all-lines has room for improvement (see above function def)
+ - rather than going through all the columns and rows in order; make a smart priority list for the order: Start going through from line with least room to most room, and while going through, move rows and cols that changed to start of the queue
+ - Integrate a search algorithm for when constraint-satisfaction falls short.
 |#
