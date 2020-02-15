@@ -88,7 +88,7 @@
       ((< (apply + spec) (length (filter (lambda (x) (= x 1)) line)))
        (list))
       ;; Optimization: If there's not enough space to fit the spec then there are no results
-      ((< (length (filter (lambda (x) (not (= x 0))) line)) (+ (length spec) -1 (apply + spec)))
+      ((< (length (filter (lambda (x) (not (= x 0))) line)) (apply + spec))
        (list))
       ;; After the end of the spec, we have only zeroes, or no result
       ((null? spec)
