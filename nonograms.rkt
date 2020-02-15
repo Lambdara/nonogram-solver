@@ -83,12 +83,15 @@
 ;; TODO: This might be worth optimizing, by aborting if we get into the situation where there isn't enough space to fit the spec in the remaining line, and putting entire bits in one go after checking for space
 (define (all-lines line spec)
   (define (go line spec started)
-    (cond
-      ;; Optimization: If there's not enough spec to fit the line then there are no results
+    (define result (cond
+      ;; Optimization: If there's not enough spec-bits to fit the line then there are no results
       ((< (apply + spec) (length (filter (lambda (x) (= x 1)) line)))
        (list))
-      ;; Optimization: If there's not enough space to fit the spec then there are no results
+      ;; Optimization: If there's not enough space to fit the spec-bits then there are no results
       ((< (length (filter (lambda (x) (not (= x 0))) line)) (apply + spec))
+       (list))
+      ;; Optimization: If there's not enough space to fit the spec then there are no results
+      ((< (length line) (+ (length spec) -1 (apply + spec)))
        (list))
       ;; After the end of the spec, we have only zeroes, or no result
       ((null? spec)
@@ -142,6 +145,9 @@
                 (go (cdr line) (cons (- (car spec) 1) (cdr spec)) #t))))
       (else
        (displayln "You, you're finally awake;"))))
+    (if (null? result)
+        (list)
+        (list (line-intersections result))))
       
   (go line spec #f))
 
