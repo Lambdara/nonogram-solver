@@ -84,7 +84,12 @@
 (define (all-lines line spec)
   (define (go line spec started)
     (cond
-
+      ;; Optimization: If there's not enough spec to fit the line then there are no results
+      ((< (apply + spec) (length (filter (lambda (x) (= x 1)) line)))
+       (list))
+      ;; Optimization: If there's not enough space to fit the spec then there are no results
+      ((< (length (filter (lambda (x) (not (= x 0))) line)) (+ (length spec) -1 (apply + spec)))
+       (list))
       ;; After the end of the spec, we have only zeroes, or no result
       ((null? spec)
        (if (member 1 line)
@@ -157,30 +162,67 @@
        (compare-firsts (map car lines))
        (line-intersections (map cdr lines)))))
 
-(define (apply-constraints board spec)
+(define (apply-constraints-row board spec y)
   (print-board board)
-  (newline)
-  (define old (board-copy board))
-  (for-each
-   (lambda (x)
-     (board-apply-col board
-                      x
-                      (line-intersections
-                       (all-lines
-                        (board-get-col board x)
-                        (list-ref (spec-cols spec) x)))))
-   (range (board-width board)))
-  (for-each
-   (lambda (y)
+     (newline)
      (board-apply-row board
                       y
                       (line-intersections
                        (all-lines
                         (board-get-row board y)
                         (list-ref (spec-rows spec) y)))))
-   (range (board-height board)))
+
+(define (apply-constraints-col board spec x)
+  (print-board board)
+     (newline)
+     (board-apply-col board
+                      x
+                      (line-intersections
+                       (all-lines
+                        (board-get-col board x)
+                        (list-ref (spec-cols spec) x)))))
+
+(define (apply-constraints board spec)
+  (define old (board-copy board))
+  (define width (board-width board))
+  (define height (board-height board))
+  (define (free-space row-or-col)
+    (define line-spec
+      (list-ref ((if (equal? 'row
+                             (car row-or-col))
+                     spec-rows
+                     spec-cols)
+                 spec)
+                (cdr row-or-col)))
+    (define space
+      (if (equal? 'row
+                  (car row-or-col))
+          width
+          height))
+    (- space (+ (length line-spec) -1 (apply + line-spec))))
+
+  (define order
+    (sort
+     (append
+      (map (lambda (y) (cons 'row y)) (range height))
+      (map (lambda (x) (cons 'col x)) (range width)))
+     (lambda (x y)
+       (< (free-space x) (free-space y)))))
+
+  (for-each
+   (lambda (x)
+     (displayln x)
+     ((if (equal? (car x)
+                  'col)
+          apply-constraints-col
+          apply-constraints-row)
+      board spec (cdr x)))
+   order)
+
   (unless (equal? board old)
-    (apply-constraints board spec)))
+    (apply-constraints board spec))
+  (newline)
+  )
 
 (define (run path)
   (define spec (file->spec path))
