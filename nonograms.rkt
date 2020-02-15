@@ -83,7 +83,7 @@
 ;; TODO: This might be worth optimizing, by aborting if we get into the situation where there isn't enough space to fit the spec in the remaining line, and putting entire bits in one go after checking for space
 (define (all-lines line spec)
   (define (go line spec started)
-    (define result (cond
+    (cond
       ;; Optimization: If there's not enough spec-bits to fit the line then there are no results
       ((< (apply + spec) (length (filter (lambda (x) (= x 1)) line)))
        (list))
@@ -122,11 +122,14 @@
       ((and (not started)
             (= (car line)
                -1))
-       (append
-        (map ((curry cons) 1)
-             (go (cdr line) (cons (- (car spec) 1) (cdr spec)) #t))
-        (map ((curry cons) 0)
-             (go (cdr line) spec #f))))
+       (let ((result (append
+                      (map ((curry cons) 1)
+                           (go (cdr line) (cons (- (car spec) 1) (cdr spec)) #t))
+                      (map ((curry cons) 0)
+                           (go (cdr line) spec #f)))))
+         (if (= (length result) 2)
+             (list (line-intersections result))
+             result)))
       ;; If started and the current spec-bit is 0, the next index can't be 1 or there are no results. We have to leave a zero, remove the current spec bit, and stop.
       ((and started
             (= (car spec)
@@ -145,9 +148,6 @@
                 (go (cdr line) (cons (- (car spec) 1) (cdr spec)) #t))))
       (else
        (displayln "You, you're finally awake;"))))
-    (if (null? result)
-        (list)
-        (list (line-intersections result))))
       
   (go line spec #f))
 
@@ -227,7 +227,6 @@
 
   (unless (equal? board old)
     (apply-constraints board spec))
-  (newline)
   )
 
 (define (run path)
